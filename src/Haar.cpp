@@ -142,17 +142,73 @@ float Haar::getTemperatureStd(Sensor device)    { return scaled(device == Pres_S
 float Haar::getTemperatureSterr(Sensor device)  { return scaled(device == Pres_Sense ? _tempPresReadings.sterr()  : _tempRHReadings.sterr()); }
 float Haar::getTemperatureMedian(Sensor device) { return scaled(device == Pres_Sense ? _tempPresReadings.median() : _tempRHReadings.median()); }
 
+//The summary interface: the columns a logger writes, streamed. getHeader() and
+//getString() are the same column set collected into a String, which keeps one
+//definition of it. See LIBRARY-DESIGN.md section 14.
+size_t Haar::printDataHeader(Print& out)
+{
+	bool sh = _humidityCfg.columns();
+	bool sp = _pressureCfg.columns();
+	size_t n = 0;
+	n += out.print("Pressure Atmos [mBar], ");
+	if(sp) n += out.print("Pressure Atmos std [mBar], Pressure Atmos sterr [mBar], ");
+	n += out.print("Humidity [%], ");
+	if(sh) n += out.print("Humidity std [%], Humidity sterr [%], ");
+	n += out.print("Temp Pres [C], ");
+	if(sp) n += out.print("Temp Pres std [C], Temp Pres sterr [C], ");
+	n += out.print("Temp RH [C],");
+	if(sh) n += out.print(" Temp RH std [C], Temp RH sterr [C],");
+	return n;
+}
+
+size_t Haar::printDataRow(Print& out)
+{
+	//The values the last reading left, in printDataHeader()'s order. This takes
+	//no reading: the caller has already acquired, and a row written to two sinks
+	//must not acquire twice.
+	bool sh = _humidityCfg.columns();
+	bool sp = _pressureCfg.columns();
+	size_t n = 0;
+	n += out.print(getPressure());
+	n += out.print(',');
+	if(sp) {
+		n += out.print(getPressureStd());
+		n += out.print(',');
+		n += out.print(getPressureSterr());
+		n += out.print(',');
+	}
+	n += out.print(getHumidity());
+	n += out.print(',');
+	if(sh) {
+		n += out.print(getHumidityStd());
+		n += out.print(',');
+		n += out.print(getHumiditySterr());
+		n += out.print(',');
+	}
+	n += out.print(getTemperature(Pres_Sense));
+	n += out.print(',');
+	if(sp) {
+		n += out.print(getTemperatureStd(Pres_Sense));
+		n += out.print(',');
+		n += out.print(getTemperatureSterr(Pres_Sense));
+		n += out.print(',');
+	}
+	n += out.print(getTemperature(RH_Sense));
+	n += out.print(',');
+	if(sh) {
+		n += out.print(getTemperatureStd(RH_Sense));
+		n += out.print(',');
+		n += out.print(getTemperatureSterr(RH_Sense));
+		n += out.print(',');
+	}
+	return n;
+}
+
 String Haar::getHeader()
 {
-	bool sh = _humidityCfg.columns(), sp = _pressureCfg.columns();
-	String h = "Pressure Atmos [mBar], ";
-	if(sp) h += "Pressure Atmos std [mBar], Pressure Atmos sterr [mBar], ";
-	h += "Humidity [%], ";
-	if(sh) h += "Humidity std [%], Humidity sterr [%], ";
-	h += "Temp Pres [C], ";
-	if(sp) h += "Temp Pres std [C], Temp Pres sterr [C], ";
-	h += "Temp RH [C],";
-	if(sh) h += " Temp RH std [C], Temp RH sterr [C],";
+	String h;
+	NW_StringPrint p(h);
+	printDataHeader(p);
 	return h;
 }
 
@@ -214,15 +270,9 @@ String Haar::getString()
 		summarise(ALL);
 	}
 	else(updateMeasurements(true)); //Else, block for new conversion
-	bool sh = _humidityCfg.columns(), sp = _pressureCfg.columns();
-	String s = String(getPressure()) + ",";
-	if(sp) s += String(getPressureStd()) + "," + String(getPressureSterr()) + ",";
-	s += String(getHumidity()) + ",";
-	if(sh) s += String(getHumidityStd()) + "," + String(getHumiditySterr()) + ",";
-	s += String(getTemperature(Pres_Sense)) + ",";
-	if(sp) s += String(getTemperatureStd(Pres_Sense)) + "," + String(getTemperatureSterr(Pres_Sense)) + ",";
-	s += String(getTemperature(RH_Sense)) + ",";
-	if(sh) s += String(getTemperatureStd(RH_Sense)) + "," + String(getTemperatureSterr(RH_Sense)) + ",";
+	String s;
+	NW_StringPrint p(s);
+	printDataRow(p);
 	return s;
 }
 
