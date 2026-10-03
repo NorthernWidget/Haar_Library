@@ -15,11 +15,14 @@ TwoWire Wire;
 // 0.01 hPa at 0x50, temperature int16 0.01 C at 0x54).
 static void loadImage(uint32_t pres, uint16_t rh, int16_t tSHT, int16_t tLPS, uint8_t fwPatch = 1, uint8_t schema = 0x01) {
   uint8_t* r = Wire.image;
-  nwLoadPage0(r, "Haar", 0x48, 1, fwPatch, schema);                 // Page 0 and Block 0, HW 0.1
-  r[0x48] = tSHT & 0xFF; r[0x49] = (tSHT >> 8) & 0xFF;
-  r[0x4A] = rh & 0xFF;   r[0x4B] = (rh >> 8) & 0xFF;
+  nwLoadPage0(r, "Haar", 0x48, 1, fwPatch, schema);  // Page 0 and Block 0, HW 0.1
+  r[0x48] = tSHT & 0xFF;
+  r[0x49] = (tSHT >> 8) & 0xFF;
+  r[0x4A] = rh & 0xFF;
+  r[0x4B] = (rh >> 8) & 0xFF;
   for (int i = 0; i < 4; i++) r[0x50 + i] = (pres >> (8 * i)) & 0xFF;
-  r[0x54] = tLPS & 0xFF; r[0x55] = (tLPS >> 8) & 0xFF;
+  r[0x54] = tLPS & 0xFF;
+  r[0x55] = (tLPS >> 8) & 0xFF;
 }
 
 // The String functions are gone (section 15 family B). These helpers hold this
@@ -35,7 +38,7 @@ static const char* head(Haar& s) {
 }
 
 static const char* row(Haar& s) {
-  s.acquire();                       // getString() acquired; printDataRow() does not
+  s.acquire();  // getString() acquired; printDataRow() does not
   static char b[1024];
   NW_BufferPrint p(b, sizeof b);
   s.printDataRow(p);
@@ -72,70 +75,149 @@ int main() {
 
   // 1. A complete reading: the firmware now serves 0.01-unit values, so 55.00 %RH and 21.37 C exactly.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; bool ok = s.begin(); printf("begin=%d\n", ok); report("complete reading", s); }
+  {
+    Haar s;
+    bool ok = s.begin();
+    printf("begin=%d\n", ok);
+    report("complete reading", s);
+  }
 
   // 2. Negative temperatures: SHT31 -20.97 C; LPS35HW -12.34 C; 985.50 hPa; 100 %RH.
   loadImage(98550, 10000, -2097, -1234);
-  { Haar s; s.begin(); report("negative temperatures", s); }
+  {
+    Haar s;
+    s.begin();
+    report("negative temperatures", s);
+  }
 
   // 3. Device absent: not answering at the address.
-  loadImage(101325, 5500, 2137, 2215); Wire.present = false;
-  { Haar s; bool ok = s.begin(); printf("begin=%d\n", ok); report("device absent", s); }
+  loadImage(101325, 5500, 2137, 2215);
+  Wire.present = false;
+  {
+    Haar s;
+    bool ok = s.begin();
+    printf("begin=%d\n", ok);
+    report("device absent", s);
+  }
   Wire.present = true;
 
   // 4. Device present but the reading never completes (no firmware response to the trigger).
-  loadImage(101325, 5500, 2137, 2215); Wire.image[0x40] = 0x00; Wire.onWrite = nullptr;
-  { Haar s; s.begin(); report("never ready", s); }
+  loadImage(101325, 5500, 2137, 2215);
+  Wire.image[0x40] = 0x00;
+  Wire.onWrite = nullptr;
+  {
+    Haar s;
+    s.begin();
+    report("never ready", s);
+  }
   installFirmwareEmulation();
 
   // 5. begin() gates: wrong name, wrong schema, firmware too old, and the versions it reports.
-  loadImage(101325, 5500, 2137, 2215); Wire.image[0x01] = 'X';
-  { Haar s; bool ok = s.begin(); printf("[wrong name] begin=%d failure=%s\n", ok, note(s, true)); }
-  loadImage(101325, 5500, 2137, 2215, 1, 0x00);
-  { Haar s; bool ok = s.begin(); printf("[schema 0x00] begin=%d failure=%s\n", ok, note(s, true)); }
-  loadImage(101325, 5500, 2137, 2215, 0);
-  { Haar s; bool ok = s.begin(); printf("[fw patch 0 < min %d] begin=%d fw=%u failure=%s\n", HAAR_FW_MIN_PATCH, ok, s.getFirmwareVersion(), note(s, true)); }
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; bool ok = s.begin(); printf("[versions] begin=%d hw=%u.%u fw=%u failure=%s\n", ok, s.getHardwareMajor(), s.getHardwareMinor(), s.getFirmwareVersion(), note(s, true)); }
+  Wire.image[0x01] = 'X';
+  {
+    Haar s;
+    bool ok = s.begin();
+    printf("[wrong name] begin=%d failure=%s\n", ok, note(s, true));
+  }
+  loadImage(101325, 5500, 2137, 2215, 1, 0x00);
+  {
+    Haar s;
+    bool ok = s.begin();
+    printf("[schema 0x00] begin=%d failure=%s\n", ok, note(s, true));
+  }
+  loadImage(101325, 5500, 2137, 2215, 0);
+  {
+    Haar s;
+    bool ok = s.begin();
+    printf("[fw patch 0 < min %d] begin=%d fw=%u failure=%s\n", HAAR_FW_MIN_PATCH, ok, s.getFirmwareVersion(), note(s, true));
+  }
+  loadImage(101325, 5500, 2137, 2215);
+  {
+    Haar s;
+    bool ok = s.begin();
+    printf("[versions] begin=%d hw=%u.%u fw=%u failure=%s\n", ok, s.getHardwareMajor(), s.getHardwareMinor(), s.getFirmwareVersion(), note(s, true));
+  }
 
   // 6. Faults: the SHT31 fails its checksum (status bit 1, pan-fault, latched 0x03); the
   //    LPS35HW values survive. Then an LPS35HW timeout (0x22), then a unit reset with a clean status.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; s.begin(); char pb[48];
-    onReading = [](TwoWire& w) { w.image[0x40] = 0x83; w.image[0x47] = 0x03; };
-    bool ok = s.updateMeasurements(); BufferPrint bp(pb, sizeof pb); s.printReport(bp);
+  {
+    Haar s;
+    s.begin();
+    char pb[48];
+    onReading = [](TwoWire& w) {
+      w.image[0x40] = 0x83;
+      w.image[0x47] = 0x03;
+    };
+    bool ok = s.updateMeasurements();
+    BufferPrint bp(pb, sizeof pb);
+    s.printReport(bp);
     printf("[SHT31 checksum] update=%d faulted(0)=%d faulted(1)=%d any=%d chip=%u kind=%u text='%s' note='%s'\n",
            ok, s.faulted(0), s.faulted(1), s.anyFault(), s.reportChip(), s.reportKind(), pb, note(s));
     printf("[SHT31 checksum] string: %s\n", row(s));
-    onReading = [](TwoWire& w) { w.image[0x40] = 0x85; w.image[0x47] = 0x22; };
-    const char* line = row(s);    // evaluated before the note: printf argument order is unspecified
+    onReading = [](TwoWire& w) {
+      w.image[0x40] = 0x85;
+      w.image[0x47] = 0x22;
+    };
+    const char* line = row(s);  // evaluated before the note: printf argument order is unspecified
     printf("[LPS35HW timeout] string: %s note='%s'\n", line, note(s));
-    onReading = [](TwoWire& w) { w.image[0x40] = 0x01; w.image[0x47] = 0xE6; };
-    ok = s.updateMeasurements(); BufferPrint bp2(pb, sizeof pb); s.printReport(bp2);
+    onReading = [](TwoWire& w) {
+      w.image[0x40] = 0x01;
+      w.image[0x47] = 0xE6;
+    };
+    ok = s.updateMeasurements();
+    BufferPrint bp2(pb, sizeof pb);
+    s.printReport(bp2);
     printf("[unit reset] update=%d any=%d chip=%u kind=%u text='%s' note='%s'\n", ok, s.anyFault(), s.reportChip(), s.reportKind(), pb, note(s));
-    onReading = nullptr; }
+    onReading = nullptr;
+  }
 
   // 7. Non-blocking path: request, poll newData() (captures), getters; then a request followed by a row.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; s.begin(); int k = 0;
-    onReading = [&](TwoWire& w) { k++; uint32_t p = 101325 + 10 * k; for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF; };
-    bool req = s.updateMeasurements(false); bool nd = s.newData();
+  {
+    Haar s;
+    s.begin();
+    int k = 0;
+    onReading = [&](TwoWire& w) {
+      k++;
+      uint32_t p = 101325 + 10 * k;
+      for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF;
+    };
+    bool req = s.updateMeasurements(false);
+    bool nd = s.newData();
     printf("[non-blocking] request=%d newData=%d pressure=%.2f (stale getter untouched by the request)\n", req, nd, s.getPressure());
-    req = s.updateMeasurements(false); printf("[non-blocking] then row: %s\n", row(s));
-    unsigned t0 = Wire.transactions; row(s); printf("[cost] requestFrom calls for one row: %u\n", Wire.transactions - t0);
-    onReading = nullptr; }
+    req = s.updateMeasurements(false);
+    printf("[non-blocking] then row: %s\n", row(s));
+    unsigned t0 = Wire.transactions;
+    row(s);
+    printf("[cost] requestFrom calls for one row: %u\n", Wire.transactions - t0);
+    onReading = nullptr;
+  }
 
   // 8. N readings with statistics: humidity steps through five values, pressure through three;
   //    the batch word reaches the device; the row grows its columns.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; s.begin(); int k = 0;
-    onReading = [&](TwoWire& w) { k++;
-      int16_t rh = 5480 + 10 * (k % 5); w.image[0x4A] = rh & 0xFF; w.image[0x4B] = (rh >> 8) & 0xFF;
-      uint32_t p = 101300 + 25 * (k % 3); for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF; };
+  {
+    Haar s;
+    s.begin();
+    int k = 0;
+    onReading = [&](TwoWire& w) {
+      k++;
+      int16_t rh = 5480 + 10 * (k % 5);
+      w.image[0x4A] = rh & 0xFF;
+      w.image[0x4B] = (rh >> 8) & 0xFF;
+      uint32_t p = 101300 + 25 * (k % 3);
+      for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF;
+    };
     printf("[N] setHumidityReadings(5)=%u setPressureReadings(3)=%u setHumidityReadings(99)=%u\n",
            s.setHumidityReadings(5), s.setPressureReadings(3), s.setHumidityReadings(99));
-    s.setHumidityReadings(5); s.setHumidityStats(true); s.setPressureStats(true);
-    lastRequest = 0; unsigned t0 = Wire.transactions; bool ok = s.updateMeasurements();
+    s.setHumidityReadings(5);
+    s.setHumidityStats(true);
+    s.setPressureStats(true);
+    lastRequest = 0;
+    unsigned t0 = Wire.transactions;
+    bool ok = s.updateMeasurements();
     printf("[N=5,3] update=%d humidityCount=%u pressureCount=%u lastRequest=%u requestFrom=%u\n",
            ok, s.getHumidityCount(), s.getPressureCount(), lastRequest, Wire.transactions - t0);
     printf("[N=5,3] humidity mean=%.4f std=%.4f sterr=%.4f median=%.4f | pressure mean=%.4f std=%.4f median=%.4f | tRH mean=%.4f std=%.4f | tPres mean=%.4f\n",
@@ -145,35 +227,74 @@ int main() {
     printf("[N=5,3] string: %s\n", row(s));
     ok = s.updateMeasurements(Haar::LPS35HW);
     printf("[LPS35HW only] update=%d humidityCount=%u pressureCount=%u humidity=%.4f\n", ok, s.getHumidityCount(), s.getPressureCount(), s.getHumidity());
-    onReading = nullptr; }
+    onReading = nullptr;
+  }
 
   // 9. Reading interface: header, three logged readings of ALL, then SHT31 alone; the
   //    batch word for the run reaches the device.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; s.begin(); int k = 0; char pb[96];
-    onReading = [&](TwoWire& w) { k++; uint32_t p = 101300 + 5 * k; for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF; };
-    lastRequest = 0; s.beginReadings(Haar::ALL, 3);
-    BufferPrint bh(pb, sizeof pb); s.printHeader(bh); printf("[run ALL] header: %s lastRequest=%u\n", pb, lastRequest);
-    for (int i = 0; i < 3; i++) { BufferPrint bp(pb, sizeof pb); size_t n = s.logReading(bp); printf("[run ALL] row %d (%zu bytes): %s\n", i, n, pb); }
+  {
+    Haar s;
+    s.begin();
+    int k = 0;
+    char pb[96];
+    onReading = [&](TwoWire& w) {
+      k++;
+      uint32_t p = 101300 + 5 * k;
+      for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF;
+    };
+    lastRequest = 0;
+    s.beginReadings(Haar::ALL, 3);
+    BufferPrint bh(pb, sizeof pb);
+    s.printHeader(bh);
+    printf("[run ALL] header: %s lastRequest=%u\n", pb, lastRequest);
+    for (int i = 0; i < 3; i++) {
+      BufferPrint bp(pb, sizeof pb);
+      size_t n = s.logReading(bp);
+      printf("[run ALL] row %d (%zu bytes): %s\n", i, n, pb);
+    }
     s.endReadings();
     printf("[run ALL] pressure count=%u mean=%.4f median=%.4f\n", s.getPressureCount(), s.getPressureMean(), s.getPressureMedian());
     s.beginReadings(Haar::SHT31);
-    BufferPrint bh2(pb, sizeof pb); s.printHeader(bh2); printf("[run SHT31] header: %s\n", pb);
-    BufferPrint bp2(pb, sizeof pb); s.logReading(bp2); s.endReadings(); printf("[run SHT31] row: %s\n", pb);
-    onReading = nullptr; }
+    BufferPrint bh2(pb, sizeof pb);
+    s.printHeader(bh2);
+    printf("[run SHT31] header: %s\n", pb);
+    BufferPrint bp2(pb, sizeof pb);
+    s.logReading(bp2);
+    s.endReadings();
+    printf("[run SHT31] row: %s\n", pb);
+    onReading = nullptr;
+  }
 
   // 10. A dead LPS35HW (not answering on the first reading) stops its batch of 10.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; s.begin(); int k = 0;
-    onReading = [&](TwoWire& w) { k++; w.image[0x40] = 0x85; w.image[0x47] = 0x21; };
-    s.setPressureReadings(10); bool ok = s.updateMeasurements(Haar::LPS35HW);
+  {
+    Haar s;
+    s.begin();
+    int k = 0;
+    onReading = [&](TwoWire& w) {
+      k++;
+      w.image[0x40] = 0x85;
+      w.image[0x47] = 0x21;
+    };
+    s.setPressureReadings(10);
+    bool ok = s.updateMeasurements(Haar::LPS35HW);
     printf("[dead LPS35HW] N=10: update=%d readings taken=%d pressureCount=%u pressure=%.2f note='%s'\n", ok, k, s.getPressureCount(), s.getPressure(), note(s));
-    onReading = nullptr; }
+    onReading = nullptr;
+  }
 
   // 11. The status line for a logger's status file.
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; s.begin(); s.updateMeasurements(); char sb[320]; BufferPrint sp(sb, sizeof sb); size_t k = s.printStatus(sp); printf("[status] %zu bytes: %s\n", k, sb); }
+  {
+    Haar s;
+    s.begin();
+    s.updateMeasurements();
+    char sb[320];
+    BufferPrint sp(sb, sizeof sb);
+    size_t k = s.printStatus(sp);
+    printf("[status] %zu bytes: %s\n", k, sb);
+  }
 
-  fprintf(stderr, "bus transactions total: %u\n", Wire.transactions);   // metric, not output
+  fprintf(stderr, "bus transactions total: %u\n", Wire.transactions);  // metric, not output
   return 0;
 }
