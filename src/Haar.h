@@ -77,7 +77,7 @@ class Haar : public NW_Sensor
 	   * @brief Begin communications with the Haar sensor.
 	   * @details Refuses the device unless Page 0 says Schema 1, the name
 	   * "Haar", and a firmware patch of at least HAAR_FW_MIN_PATCH;
-	   * beginFailure() says which gate refused. Takes no reading.
+	   * printNote(out, true) says which gate refused. Takes no reading.
 	   * @param[in] ADR_: I2C address. Defaults to DEFAULT_ADDRESS.
 	   * @return True if the device answered and passed the three gates.
 	   */
@@ -245,8 +245,11 @@ class Haar : public NW_Sensor
 
 		/**
 		 * @brief Print one word for the logger's Note column, with no comma.
-		 * @param beginFailed print why begin() refused, rather than what the last
-		 *        reading reported.
+		 * @details The chip and the kind ("SHT31ChecksumFailed", "LPS35HWTimeout",
+		 * "UnitRestarted"); "UnitNone" when nothing happened.
+		 * @param beginFailed print why begin() refused ("NotAnswering",
+		 *        "NotSchema1", "WrongName", "OldFirmware"; "None" after success),
+		 *        rather than what the last reading reported.
 		 * @return Bytes printed.
 		 */
 		size_t printNote(Print& out, bool beginFailed = false) override;
@@ -297,8 +300,6 @@ class Haar : public NW_Sensor
 		uint8_t reportKind();
 		/** @brief Print the report as text, e.g. "SHT31: checksum failed"; "none" when there is no fault. */
 		size_t printReport(Print& out);
-		/** @brief The report as one word for a note column: "SHT31ChecksumFailed", "LPS35HWTimeout", "UnitRestarted"; "UnitNone" when none. */
-		String reportNote();
 		/** @brief Print one status line for a logger's status file: name, serial, versions, the last report, Pages 0-2 in hex; no newline, not answering. */
 		size_t printStatus(Print& out, bool boot = false) override;
 		// --- NW_Sensor: the logger's view (Margay::watch) ---
@@ -306,8 +307,6 @@ class Haar : public NW_Sensor
 		bool reportIsFault() override;
 		uint8_t bootReportKind() override;
 		void clearBootReport() override;
-		/** @brief Why the last begin() refused, as one word: "NotAnswering", "NotSchema1", "WrongName", "OldFirmware"; "None" after success. */
-		String beginFailure();
 		uint8_t getHardwareMajor();
 		uint8_t getHardwareMinor();
 		uint8_t getFirmwareVersion();

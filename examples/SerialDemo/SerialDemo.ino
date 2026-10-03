@@ -10,7 +10,11 @@ void setup() {
 	bool ok = sensor.begin(); //Initialize Haar sensor with default sensor, grab sensor status
 	
 	Serial.print("Haar Status:"); //Print resulting sensor status 
-	if(!ok) { Serial.print("\t FAIL: "); Serial.print(sensor.beginFailure()); Serial.print("\n\n"); }
+	if(!ok) {
+		Serial.print("\t FAIL: ");
+		sensor.printNote(Serial, true); //Which gate begin() refused at
+		Serial.print("\n\n");
+	}
 	else Serial.print("\t PASS\n\n");
 }
 

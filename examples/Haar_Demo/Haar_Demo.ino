@@ -1,3 +1,5 @@
+// Haar_Demo: one row per second from a Haar temperature, pressure and humidity
+// sensor over I2C. Header once, then a reading and a row each loop.
 #include <Haar.h>
 
 Haar sensor;
@@ -7,14 +9,18 @@ void setup() {
     Serial.println("Haar temperature, pressure, and humidity sensor");
     if (!sensor.begin()) {
         Serial.print("Haar not found: ");
-        Serial.println(sensor.beginFailure());  // NotAnswering, NotSchema1, WrongName, OldFirmware
+        sensor.printNote(Serial, true);  // NotAnswering, NotSchema1, WrongName, OldFirmware
+        Serial.println();
         while (1);
     }
-    Serial.println(sensor.getHeader());
+    sensor.printDataHeader(Serial);  // straight to the port: no row is built in RAM
+    Serial.println();
 }
 
 void loop() {
-    Serial.println(sensor.getString());  // -9999.00 where a reading failed
+    sensor.acquire();             // take the readings; printDataRow() prints what they left
+    sensor.printDataRow(Serial);  // -9999.00 where a reading failed
+    Serial.println();
     if (sensor.anyFault()) {
         sensor.printReport(Serial);  // e.g. "SHT31: checksum failed"
         Serial.println();

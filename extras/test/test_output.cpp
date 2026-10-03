@@ -90,13 +90,13 @@ int main() {
 
   // 5. begin() gates: wrong name, wrong schema, firmware too old, and the versions it reports.
   loadImage(101325, 5500, 2137, 2215); Wire.image[0x01] = 'X';
-  { Haar s; bool ok = s.begin(); printf("[wrong name] begin=%d failure=%s\n", ok, s.beginFailure().c_str()); }
+  { Haar s; bool ok = s.begin(); printf("[wrong name] begin=%d failure=%s\n", ok, note(s, true)); }
   loadImage(101325, 5500, 2137, 2215, 1, 0x00);
-  { Haar s; bool ok = s.begin(); printf("[schema 0x00] begin=%d failure=%s\n", ok, s.beginFailure().c_str()); }
+  { Haar s; bool ok = s.begin(); printf("[schema 0x00] begin=%d failure=%s\n", ok, note(s, true)); }
   loadImage(101325, 5500, 2137, 2215, 0);
-  { Haar s; bool ok = s.begin(); printf("[fw patch 0 < min %d] begin=%d fw=%u failure=%s\n", HAAR_FW_MIN_PATCH, ok, s.getFirmwareVersion(), s.beginFailure().c_str()); }
+  { Haar s; bool ok = s.begin(); printf("[fw patch 0 < min %d] begin=%d fw=%u failure=%s\n", HAAR_FW_MIN_PATCH, ok, s.getFirmwareVersion(), note(s, true)); }
   loadImage(101325, 5500, 2137, 2215);
-  { Haar s; bool ok = s.begin(); printf("[versions] begin=%d hw=%u.%u fw=%u failure=%s\n", ok, s.getHardwareMajor(), s.getHardwareMinor(), s.getFirmwareVersion(), s.beginFailure().c_str()); }
+  { Haar s; bool ok = s.begin(); printf("[versions] begin=%d hw=%u.%u fw=%u failure=%s\n", ok, s.getHardwareMajor(), s.getHardwareMinor(), s.getFirmwareVersion(), note(s, true)); }
 
   // 6. Faults: the SHT31 fails its checksum (status bit 1, pan-fault, latched 0x03); the
   //    LPS35HW values survive. Then an LPS35HW timeout (0x22), then a unit reset with a clean status.

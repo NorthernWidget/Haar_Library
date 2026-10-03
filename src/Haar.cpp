@@ -269,7 +269,6 @@ bool    Haar::faulted(uint8_t chip) { return _dev.faulted(chip); }
 bool    Haar::anyFault()            { return _dev.anyFault(); }
 uint8_t Haar::reportChip()           { return _dev.reportChip(); }
 uint8_t Haar::reportKind()           { return _dev.reportKind(); }
-String  Haar::beginFailure()        { return _dev.beginFailure(); }
 uint8_t Haar::getHardwareMajor()    { return _dev.hardwareMajor(); }
 uint8_t Haar::getHardwareMinor()    { return _dev.hardwareMinor(); }
 uint8_t Haar::getFirmwareVersion()  { return _dev.firmwareVersion(); }
@@ -290,13 +289,6 @@ size_t Haar::printStatus(Print& out, bool boot)
 bool    Haar::reportIsFault()   { return _dev.report().isFault(); }
 uint8_t Haar::bootReportKind()  { return _dev.bootReport().kind(); }
 void    Haar::clearBootReport() { _dev.clearBootReport(); }
-
-String Haar::reportNote()
-{
-	//One word for a data-table note: the chip, then the kind ("SHT31ChecksumFailed").
-	static const char* const chips[] = {"SHT31", "LPS35HW"};
-	return _dev.report().note(chips, 2);
-}
 
 //The logger's three calls on a watched sensor: come back on the bus, take the
 //readings, and give up a word when something happened. See LIBRARY-DESIGN.md
@@ -327,5 +319,10 @@ bool Haar::acquire()
 
 size_t Haar::printNote(Print& out, bool beginFailed)
 {
-	return out.print(beginFailed ? beginFailure() : reportNote());
+	//One word for a data-table note: the chip, then the kind
+	//("SHT31ChecksumFailed"), or which gate begin() refused at. Streamed, so no
+	//String is built for it.
+	static const char* const chips[] = {"SHT31", "LPS35HW"};
+	if(beginFailed) return _dev.printBeginFailure(out);
+	return _dev.report().printNote(out, chips, 2);
 }
