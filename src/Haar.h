@@ -242,13 +242,13 @@ class Haar : public NW_Sensor
 		 * this sensor was begun with.
 		 * @return True when the sensor answered and passed begin()'s gates.
 		 */
-		bool wake();
+		bool wake() override;
 
 		/**
 		 * @brief Take this row's readings and store them, for printDataRow() to print.
 		 * @return True when a reading was taken.
 		 */
-		bool acquire();
+		bool acquire() override;
 
 		/**
 		 * @brief Print one word for the logger's Note column, with no comma.
@@ -256,7 +256,7 @@ class Haar : public NW_Sensor
 		 *        reading reported.
 		 * @return Bytes printed.
 		 */
-		size_t printNote(Print& out, bool beginFailed = false);
+		size_t printNote(Print& out, bool beginFailed = false) override;
 
 
 		String getHeader();
