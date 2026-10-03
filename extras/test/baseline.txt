@@ -29,8 +29,8 @@ update: updateMeasurements(true)=0 pressure(update)=-9999.0000
 [LPS35HW timeout] string: -9999.00,55.00,-9999.00,21.37, note='LPS35HWTimeout'
 [unit reset] update=1 any=0 chip=7 kind=6 text='unit: restarted since configured' note='UnitRestarted'
 [non-blocking] request=1 newData=1 pressure=1013.35 (stale getter untouched by the request)
-[non-blocking] then getString: 1013.45,55.00,22.15,21.37,
-[cost] requestFrom calls for one getString(): 5
+[non-blocking] then row: 1013.45,55.00,22.15,21.37,
+[cost] requestFrom calls for one row: 5
 [N] setHumidityReadings(5)=5 setPressureReadings(3)=3 setHumidityReadings(99)=16
 [N=5,3] update=1 humidityCount=5 pressureCount=3 lastRequest=3 requestFrom=40
 [N=5,3] humidity mean=55.0000 std=0.1581 sterr=0.0707 median=55.0000 | pressure mean=1013.2500 std=0.2500 median=1013.2500 | tRH mean=21.3700 std=0.0000 | tPres mean=22.1500

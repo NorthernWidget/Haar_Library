@@ -121,8 +121,8 @@ int main() {
     onReading = [&](TwoWire& w) { k++; uint32_t p = 101325 + 10 * k; for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF; };
     bool req = s.updateMeasurements(false); bool nd = s.newData();
     printf("[non-blocking] request=%d newData=%d pressure=%.2f (stale getter untouched by the request)\n", req, nd, s.getPressure());
-    req = s.updateMeasurements(false); printf("[non-blocking] then getString: %s\n", row(s));
-    unsigned t0 = Wire.transactions; row(s); printf("[cost] requestFrom calls for one getString(): %u\n", Wire.transactions - t0);
+    req = s.updateMeasurements(false); printf("[non-blocking] then row: %s\n", row(s));
+    unsigned t0 = Wire.transactions; row(s); printf("[cost] requestFrom calls for one row: %u\n", Wire.transactions - t0);
     onReading = nullptr; }
 
   // 8. N readings with statistics: humidity steps through five values, pressure through three;
