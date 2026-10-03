@@ -322,3 +322,21 @@ String Haar::reportNote()
 	static const char* const chips[] = {"SHT31", "LPS35HW"};
 	return _dev.report().note(chips, 2);
 }
+
+//The logger's three calls on a watched sensor: come back on the bus, take the
+//readings, and give up a word when something happened. See LIBRARY-DESIGN.md
+//section 14 step 4.
+bool Haar::wake()
+{
+	return begin(_dev.address());
+}
+
+bool Haar::acquire()
+{
+	return updateMeasurements(true);
+}
+
+size_t Haar::printNote(Print& out, bool beginFailed)
+{
+	return out.print(beginFailed ? beginFailure() : reportNote());
+}

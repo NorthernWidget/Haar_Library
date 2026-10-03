@@ -235,6 +235,30 @@ class Haar : public NW_Sensor
 		 */
 		size_t printDataRow(Print& out) override;
 
+		/**
+		 * @brief Come back on the bus after the logger cut the sensor rail to sleep.
+		 * @details One of the three calls a logger makes on a watched sensor
+		 * (LIBRARY-DESIGN.md section 14 step 4). It re-runs begin() at the address
+		 * this sensor was begun with.
+		 * @return True when the sensor answered and passed begin()'s gates.
+		 */
+		bool wake();
+
+		/**
+		 * @brief Take this row's readings and store them, for printDataRow() to print.
+		 * @return True when a reading was taken.
+		 */
+		bool acquire();
+
+		/**
+		 * @brief Print one word for the logger's Note column, with no comma.
+		 * @param beginFailed print why begin() refused, rather than what the last
+		 *        reading reported.
+		 * @return Bytes printed.
+		 */
+		size_t printNote(Print& out, bool beginFailed = false);
+
+
 		String getHeader();
 
 		// --- Reading interface (NW standard) ---
