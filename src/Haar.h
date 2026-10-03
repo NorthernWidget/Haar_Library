@@ -242,7 +242,10 @@ class Haar : public NW_Sensor
 		 * this sensor was begun with.
 		 * @return True when the sensor answered and passed begin()'s gates.
 		 */
-		bool wake() override;
+		/// @brief The address this sensor answers at unless the logger says otherwise.
+		uint8_t defaultAddress() const override;
+
+		bool wake(uint8_t address) override;
 
 		/**
 		 * @brief Take this row's readings and store them, for printDataRow() to print.

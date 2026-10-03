@@ -326,9 +326,14 @@ String Haar::reportNote()
 //The logger's three calls on a watched sensor: come back on the bus, take the
 //readings, and give up a word when something happened. See LIBRARY-DESIGN.md
 //section 14 step 4.
-bool Haar::wake()
+uint8_t Haar::defaultAddress() const
 {
-	return begin(_dev.address());
+	return DEFAULT_ADDRESS;
+}
+
+bool Haar::wake(uint8_t address)
+{
+	return begin(address);
 }
 
 bool Haar::acquire()
