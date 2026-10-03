@@ -151,9 +151,9 @@ class Haar : public NW_Sensor
 		uint16_t setHumidityReadings(uint16_t n);
 	  /** @brief Set how many LPS35HW readings updateMeasurements() takes. Clamped to HAAR_PRESSURE_CAPACITY. */
 		uint16_t setPressureReadings(uint16_t n);
-	  /** @brief Enable or disable humidity and SHT31-temperature std and sterr columns in getString()/getHeader(). */
+	  /** @brief Enable or disable humidity and SHT31-temperature std and sterr columns in printDataHeader()/printDataRow(). */
 		void setHumidityStats(bool enable);
-	  /** @brief Enable or disable pressure and LPS35HW-temperature std and sterr columns in getString()/getHeader(). */
+	  /** @brief Enable or disable pressure and LPS35HW-temperature std and sterr columns in printDataHeader()/printDataRow(). */
 		void setPressureStats(bool enable);
 	  /** @brief Number of valid SHT31 readings stored by the last updateMeasurements(). */
 		uint16_t getHumidityCount();
@@ -199,27 +199,14 @@ class Haar : public NW_Sensor
 	   */
 		bool newData();
 
-	  /**
-	   * @brief The most important function for the user! Returns all data as a
-	   * comma-separated string: "P,RH,T(P),T[RH],".
-	   * @details This string is: PRESSURE,RELATIVE_HUMIDITY,
-	   * TEMPERATURE_FROM_PRESSURE_SENSOR,TEMPERATURE_FROM_RH_SENSOR,
-	   */
-		String getString();
-
-	  /**
-	   * @brief Returns a header:
-     * "Pressure Atmos [mBar], Humidity [%], Temp Pres [C], Temp RH [C],"
-	   * with std and sterr columns after a value when its chip group's
-	   * statistics are enabled and more than one reading is configured.
-	   */
 		/**
 		 * @brief Print the summary columns a logger writes: the means, with the
 		 * statistics columns each chip group has enabled.
-		 * @details The streaming form of getHeader(), and its definition: that
-		 * function prints through this one into a String. Pass a `File` to write
-		 * the card, `Serial` to write the monitor. Distinct from printHeader(),
-		 * which is the burst interface and carries no statistics.
+		 * @details "Pressure Atmos [mBar], Humidity [%], Temp Pres [C], Temp RH
+		 * [C]," with std and sterr columns after a value when its chip group's
+		 * statistics are enabled and more than one reading is configured. Pass a
+		 * `File` to write the card, `Serial` to write the monitor. Distinct from
+		 * printHeader(), which is the burst interface and carries no statistics.
 		 * @param out Where to print.
 		 * @return Bytes printed.
 		 */
@@ -249,6 +236,9 @@ class Haar : public NW_Sensor
 
 		/**
 		 * @brief Take this row's readings and store them, for printDataRow() to print.
+		 * @details Captures a reading a non-blocking updateMeasurements(false)
+		 * already has in flight, rather than throwing it away and waiting again;
+		 * blocks for a fresh conversion otherwise.
 		 * @return True when a reading was taken.
 		 */
 		bool acquire() override;
@@ -261,9 +251,6 @@ class Haar : public NW_Sensor
 		 */
 		size_t printNote(Print& out, bool beginFailed = false) override;
 
-
-		String getHeader();
-
 		// --- Reading interface (NW standard) ---
 		/**
 		 * @brief Print the header matching printReading(): column names with
@@ -275,7 +262,7 @@ class Haar : public NW_Sensor
 		size_t printHeader(Print& out);
 		/**
 		 * @brief Print the stored reading of the selected chips, each value
-		 * followed by a comma, in getString()'s order: pressure [mBar],
+		 * followed by a comma, in printDataHeader()'s order: pressure [mBar],
 		 * humidity [%], LPS35HW temperature [C], SHT31 temperature [C]. Does
 		 * not acquire: call updateMeasurements() first, or use logReading().
 		 * @return Bytes written.

@@ -1,6 +1,6 @@
 // Output-regression test for Haar_Library: compiles src/Haar.cpp against the
-// NW_Core stubs and prints getHeader()/getString()/getters for fixed register
-// images. run.sh diffs the result against baseline.txt.
+// NW_Core stubs and prints printDataHeader()/printDataRow()/getters for fixed
+// register images. run.sh diffs the result against baseline.txt.
 #include "Arduino.h"
 #include "Wire.h"
 TwoWire Wire;
@@ -22,10 +22,45 @@ static void loadImage(uint32_t pres, uint16_t rh, int16_t tSHT, int16_t tLPS, ui
   r[0x54] = tLPS & 0xFF; r[0x55] = (tLPS >> 8) & 0xFF;
 }
 
+// The String functions are gone (section 15 family B). These helpers hold this
+// harness's output identical by doing exactly what they did: a row that acquires
+// first, as getString() did, and a header that does not. Each refuses to hide a
+// truncation, which would otherwise print a short line and pass.
+static const char* head(Haar& s) {
+  static char b[1024];
+  NW_BufferPrint p(b, sizeof b);
+  s.printDataHeader(p);
+  if (p.truncated()) printf("  TRUNCATED: head() needs a bigger buffer\n");
+  return b;
+}
+
+static const char* row(Haar& s) {
+  s.acquire();                       // getString() acquired; printDataRow() does not
+  static char b[1024];
+  NW_BufferPrint p(b, sizeof b);
+  s.printDataRow(p);
+  if (p.truncated()) printf("  TRUNCATED: row() needs a bigger buffer\n");
+  return b;
+}
+
+static const char* note(Haar& s, bool beginFailed = false) {
+  // Two buffers in rotation: one printf takes both a row and a note, and a
+  // single static would have the second overwrite the first before either is
+  // printed.
+  static char buffers[2][64];
+  static uint8_t which = 0;
+  char* b = buffers[which];
+  which = (uint8_t)(1 - which);
+  NW_BufferPrint p(b, sizeof buffers[0]);
+  s.printNote(p, beginFailed);
+  if (p.truncated()) printf("  TRUNCATED: note() needs a bigger buffer\n");
+  return b;
+}
+
 static void report(const char* name, Haar& s) {
   printf("[%s]\n", name);
-  printf("header: %s\n", s.getHeader().c_str());
-  printf("string: %s\n", s.getString().c_str());
+  printf("header: %s\n", head(s));
+  printf("string: %s\n", row(s));
   printf("getters: pressure=%.4f humidity=%.4f tPres=%.4f tRH=%.4f default=%.4f newData=%d\n",
          s.getPressure(), s.getHumidity(), s.getTemperature(Pres_Sense), s.getTemperature(RH_Sense), s.getTemperature(), s.newData());
   printf("update: updateMeasurements(true)=%u pressure(update)=%.4f\n", s.updateMeasurements(true), s.getPressure(true));
@@ -70,28 +105,28 @@ int main() {
     onReading = [](TwoWire& w) { w.image[0x40] = 0x83; w.image[0x47] = 0x03; };
     bool ok = s.updateMeasurements(); BufferPrint bp(pb, sizeof pb); s.printReport(bp);
     printf("[SHT31 checksum] update=%d faulted(0)=%d faulted(1)=%d any=%d chip=%u kind=%u text='%s' note='%s'\n",
-           ok, s.faulted(0), s.faulted(1), s.anyFault(), s.reportChip(), s.reportKind(), pb, s.reportNote().c_str());
-    printf("[SHT31 checksum] string: %s\n", s.getString().c_str());
+           ok, s.faulted(0), s.faulted(1), s.anyFault(), s.reportChip(), s.reportKind(), pb, note(s));
+    printf("[SHT31 checksum] string: %s\n", row(s));
     onReading = [](TwoWire& w) { w.image[0x40] = 0x85; w.image[0x47] = 0x22; };
-    String row = s.getString();   // evaluated before the note: printf argument order is unspecified
-    printf("[LPS35HW timeout] string: %s note='%s'\n", row.c_str(), s.reportNote().c_str());
+    const char* line = row(s);    // evaluated before the note: printf argument order is unspecified
+    printf("[LPS35HW timeout] string: %s note='%s'\n", line, note(s));
     onReading = [](TwoWire& w) { w.image[0x40] = 0x01; w.image[0x47] = 0xE6; };
     ok = s.updateMeasurements(); BufferPrint bp2(pb, sizeof pb); s.printReport(bp2);
-    printf("[unit reset] update=%d any=%d chip=%u kind=%u text='%s' note='%s'\n", ok, s.anyFault(), s.reportChip(), s.reportKind(), pb, s.reportNote().c_str());
+    printf("[unit reset] update=%d any=%d chip=%u kind=%u text='%s' note='%s'\n", ok, s.anyFault(), s.reportChip(), s.reportKind(), pb, note(s));
     onReading = nullptr; }
 
-  // 7. Non-blocking path: request, poll newData() (captures), getters; then a request followed by getString().
+  // 7. Non-blocking path: request, poll newData() (captures), getters; then a request followed by a row.
   loadImage(101325, 5500, 2137, 2215);
   { Haar s; s.begin(); int k = 0;
     onReading = [&](TwoWire& w) { k++; uint32_t p = 101325 + 10 * k; for (int i = 0; i < 4; i++) w.image[0x50 + i] = (p >> (8 * i)) & 0xFF; };
     bool req = s.updateMeasurements(false); bool nd = s.newData();
     printf("[non-blocking] request=%d newData=%d pressure=%.2f (stale getter untouched by the request)\n", req, nd, s.getPressure());
-    req = s.updateMeasurements(false); printf("[non-blocking] then getString: %s\n", s.getString().c_str());
-    unsigned t0 = Wire.transactions; s.getString(); printf("[cost] requestFrom calls for one getString(): %u\n", Wire.transactions - t0);
+    req = s.updateMeasurements(false); printf("[non-blocking] then getString: %s\n", row(s));
+    unsigned t0 = Wire.transactions; row(s); printf("[cost] requestFrom calls for one getString(): %u\n", Wire.transactions - t0);
     onReading = nullptr; }
 
   // 8. N readings with statistics: humidity steps through five values, pressure through three;
-  //    the batch word reaches the device; getString() grows its columns.
+  //    the batch word reaches the device; the row grows its columns.
   loadImage(101325, 5500, 2137, 2215);
   { Haar s; s.begin(); int k = 0;
     onReading = [&](TwoWire& w) { k++;
@@ -106,8 +141,8 @@ int main() {
     printf("[N=5,3] humidity mean=%.4f std=%.4f sterr=%.4f median=%.4f | pressure mean=%.4f std=%.4f median=%.4f | tRH mean=%.4f std=%.4f | tPres mean=%.4f\n",
            s.getHumidityMean(), s.getHumidityStd(), s.getHumiditySterr(), s.getHumidityMedian(),
            s.getPressureMean(), s.getPressureStd(), s.getPressureMedian(), s.getTemperatureMean(RH_Sense), s.getTemperatureStd(RH_Sense), s.getTemperatureMean(Pres_Sense));
-    printf("[N=5,3] header: %s\n", s.getHeader().c_str());
-    printf("[N=5,3] string: %s\n", s.getString().c_str());
+    printf("[N=5,3] header: %s\n", head(s));
+    printf("[N=5,3] string: %s\n", row(s));
     ok = s.updateMeasurements(Haar::LPS35HW);
     printf("[LPS35HW only] update=%d humidityCount=%u pressureCount=%u humidity=%.4f\n", ok, s.getHumidityCount(), s.getPressureCount(), s.getHumidity());
     onReading = nullptr; }
@@ -132,7 +167,7 @@ int main() {
   { Haar s; s.begin(); int k = 0;
     onReading = [&](TwoWire& w) { k++; w.image[0x40] = 0x85; w.image[0x47] = 0x21; };
     s.setPressureReadings(10); bool ok = s.updateMeasurements(Haar::LPS35HW);
-    printf("[dead LPS35HW] N=10: update=%d readings taken=%d pressureCount=%u pressure=%.2f note='%s'\n", ok, k, s.getPressureCount(), s.getPressure(), s.reportNote().c_str());
+    printf("[dead LPS35HW] N=10: update=%d readings taken=%d pressureCount=%u pressure=%.2f note='%s'\n", ok, k, s.getPressureCount(), s.getPressure(), note(s));
     onReading = nullptr; }
 
   // 11. The status line for a logger's status file.

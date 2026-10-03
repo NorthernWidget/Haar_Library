@@ -142,9 +142,8 @@ float Haar::getTemperatureStd(Sensor device)    { return scaled(device == Pres_S
 float Haar::getTemperatureSterr(Sensor device)  { return scaled(device == Pres_Sense ? _tempPresReadings.sterr()  : _tempRHReadings.sterr()); }
 float Haar::getTemperatureMedian(Sensor device) { return scaled(device == Pres_Sense ? _tempPresReadings.median() : _tempRHReadings.median()); }
 
-//The summary interface: the columns a logger writes, streamed. getHeader() and
-//getString() are the same column set collected into a String, which keeps one
-//definition of it. See LIBRARY-DESIGN.md section 14.
+//The summary interface: the columns a logger writes, streamed straight into the
+//file. No row is composed in RAM; see LIBRARY-DESIGN.md section 14.
 size_t Haar::printDataHeader(Print& out)
 {
 	bool sh = _humidityCfg.columns();
@@ -204,14 +203,6 @@ size_t Haar::printDataRow(Print& out)
 	return n;
 }
 
-String Haar::getHeader()
-{
-	String h;
-	NW_StringPrint p(h);
-	printDataHeader(p);
-	return h;
-}
-
 //The reading interface: one reading per logReading(), printed as it is taken.
 void Haar::beginReadings(uint8_t component, uint16_t n)
 {
@@ -258,22 +249,6 @@ size_t Haar::logReading(Print& out)
 		if(updatePressure()) { _pressure = _pressureReadings.last() / 100.0; _tempPres = _tempPresReadings.last() / 100.0; }
 	}
 	return printReading(out);
-}
-
-String Haar::getString()
-{
-	if(dataRequested) {  //If new data is already en-route
-		dataRequested = false;
-		_pressure = _humidity = _tempRH = _tempPres = NW_ERROR;
-		_tempRHReadings.reset(); _humidityReadings.reset(); _pressureReadings.reset(); _tempPresReadings.reset();
-		if(_dev.waitReading() && _dev.captureReading()) readData(); //Else NW_ERROR: it never came
-		summarise(ALL);
-	}
-	else(updateMeasurements(true)); //Else, block for new conversion
-	String s;
-	NW_StringPrint p(s);
-	printDataRow(p);
-	return s;
 }
 
 bool Haar::newData()  // Checks for updated data
@@ -338,7 +313,16 @@ bool Haar::wake(uint8_t address)
 
 bool Haar::acquire()
 {
-	return updateMeasurements(true);
+	if(dataRequested) {  //A non-blocking request is already out: capture that reading
+		dataRequested = false;
+		_pressure = _humidity = _tempRH = _tempPres = NW_ERROR;
+		_tempRHReadings.reset(); _humidityReadings.reset(); _pressureReadings.reset(); _tempPresReadings.reset();
+		if(!(_dev.waitReading() && _dev.captureReading())) return false; //Else NW_ERROR: it never came
+		readData();
+		summarise(ALL);
+		return true;
+	}
+	return updateMeasurements(true); //Else block for a new conversion
 }
 
 size_t Haar::printNote(Print& out, bool beginFailed)
